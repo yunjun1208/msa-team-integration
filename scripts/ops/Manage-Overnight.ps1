@@ -25,7 +25,7 @@ function Read-JsonCommand([string]$Program, [string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "$Program query failed; no resources will be treated as absent." }
     return (($result -join "`n") | ConvertFrom-Json)
 }
-function Aws([string[]]$Arguments) {
+function Invoke-AwsJson([string[]]$Arguments) {
     return Read-JsonCommand 'aws' ($Arguments + @('--region', $region, '--profile', 'default', '--output', 'json'))
 }
 function Write-Json([string]$Path, $Value) {
@@ -61,7 +61,7 @@ function Resume-Settings([bool]$DnsEnabled, [string]$Snapshot) {
     }
 }
 function Assert-Account {
-    $identity = Aws @('sts', 'get-caller-identity')
+    $identity = Invoke-AwsJson @('sts', 'get-caller-identity')
     if ($identity.Account -ne $account) { throw 'Wrong AWS account.' }
 }
 function Connect-Cluster {
@@ -80,7 +80,7 @@ function Terraform-Apply([string]$Directory, [string[]]$Extra = @()) {
 function Wait-Snapshot([string]$Name) {
     $deadline = (Get-Date).AddMinutes(60)
     do {
-        $item = (Aws @('rds', 'describe-db-snapshots', '--db-snapshot-identifier', $Name)).DBSnapshots[0]
+        $item = (Invoke-AwsJson @('rds', 'describe-db-snapshots', '--db-snapshot-identifier', $Name)).DBSnapshots[0]
         Write-Host "RDS snapshot: $($item.Status)"
         if ($item.Status -eq 'available') { return }
         if ($item.Status -notin @('creating', 'copying', 'available')) { throw 'Unexpected snapshot state.' }
@@ -130,7 +130,7 @@ if ($Action -eq 'Prepare') {
     $head = (& git rev-parse HEAD).Trim()
     $remote = (& git ls-remote origin refs/heads/main)
     if ($LASTEXITCODE -ne 0 -or ($remote -split '\s+')[0] -ne $head) { throw 'Local HEAD must match remote main.' }
-    $db = (Aws @('rds', 'describe-db-instances', '--db-instance-identifier', 'final-ordermsa-db')).DBInstances[0]
+    $db = (Invoke-AwsJson @('rds', 'describe-db-instances', '--db-instance-identifier', 'final-ordermsa-db')).DBInstances[0]
     if ($db.DBInstanceStatus -ne 'available') { throw 'RDS is not available.' }
     $app = Read-JsonCommand 'kubectl' @('get', 'secret', 'my-app-secrets', '-n', 'soldesk', '-o', 'json')
     $repo = Read-JsonCommand 'kubectl' @('get', 'secret', 'final-github-repository', '-n', 'argocd', '-o', 'json')
@@ -145,7 +145,7 @@ if ($Action -eq 'Prepare') {
     foreach ($claim in $claims.items) {
         $pv = $allPv.items | Where-Object { $_.metadata.name -eq $claim.spec.volumeName }
         if ($claim.status.phase -ne 'Bound' -or -not $pv.spec.csi.volumeHandle) { throw 'Monitoring volume is not a bound CSI volume.' }
-        $volume = (Aws @('ec2', 'describe-volumes', '--volume-ids', $pv.spec.csi.volumeHandle)).Volumes[0]
+        $volume = (Invoke-AwsJson @('ec2', 'describe-volumes', '--volume-ids', $pv.spec.csi.volumeHandle)).Volumes[0]
         $pvSpec = $pv.spec | ConvertTo-Json -Depth 50 | ConvertFrom-Json
         $pvSpec.persistentVolumeReclaimPolicy = 'Retain'
         $pvSpec.claimRef = [PSCustomObject]@{ namespace = 'monitoring'; name = $claim.metadata.name }
@@ -162,7 +162,7 @@ if ($Action -eq 'Prepare') {
         admin = $(if ($admin) { $admin.data } else { $null }); volumes = $volumes
         infraState = (& terraform -chdir=terraform state pull) -join "`n"
         k8sState = (& terraform -chdir=terraform-k8s state pull) -join "`n"
-        publicCidrs = @((Aws @('eks', 'describe-cluster', '--name', $cluster)).cluster.resourcesVpcConfig.publicAccessCidrs)
+        publicCidrs = @((Invoke-AwsJson @('eks', 'describe-cluster', '--name', $cluster)).cluster.resourcesVpcConfig.publicAccessCidrs)
     }
     if ($LASTEXITCODE -ne 0 -or -not $bundle.infraState -or -not $bundle.k8sState) { throw 'State backup failed.' }
     $bytes = [Text.Encoding]::UTF8.GetBytes(($bundle | ConvertTo-Json -Depth 100 -Compress))
@@ -206,7 +206,7 @@ if ($Action -eq 'Stop') {
     Invoke-Checked 'kubectl' @('scale', 'deployment', '--all', '-n', 'soldesk', '--replicas=0')
     Invoke-Checked 'kubectl' @('wait', '--for=delete', 'pod', '--all', '-n', 'soldesk', '--timeout=600s')
     if ($status.phase -eq 'prepared') {
-        Aws @('rds', 'create-db-snapshot', '--db-instance-identifier', 'final-ordermsa-db', '--db-snapshot-identifier', $status.snapshot) | Out-Null
+        Invoke-AwsJson @('rds', 'create-db-snapshot', '--db-instance-identifier', 'final-ordermsa-db', '--db-snapshot-identifier', $status.snapshot) | Out-Null
         $status.phase = 'snapshot-created'; Save-Status $status
     }
     Wait-Snapshot $status.snapshot
@@ -220,7 +220,7 @@ if ($Action -eq 'Stop') {
     if ($status.phase -eq 'ingresses-removed') {
     $deadline = (Get-Date).AddMinutes(15)
     do {
-        $loadBalancers = Aws @('elbv2', 'describe-load-balancers')
+        $loadBalancers = Invoke-AwsJson @('elbv2', 'describe-load-balancers')
         if (-not ($loadBalancers.LoadBalancers | Where-Object { $_.LoadBalancerName -eq 'final-shared-alb' })) { break }
         if ((Get-Date) -gt $deadline) { throw 'ALB not deleted yet; inspect Ingress finalizers.' }
         Write-Host 'Waiting for shared ALB deletion...'; Start-Sleep -Seconds 15
@@ -253,7 +253,7 @@ if ($Action -eq 'Resume') {
     # Restore storage BEFORE Helm has a chance to create empty claims.
     Terraform-Apply 'terraform-k8s' @('-target=kubernetes_namespace_v1.monitoring', '-target=kubernetes_namespace_v1.soldesk', '-target=kubernetes_storage_class_v1.gp3', '-var=enable_app_sync=false')
     foreach ($volume in $backup.volumes) {
-        $actual = (Aws @('ec2', 'describe-volumes', '--volume-ids', $volume.id)).Volumes[0]
+        $actual = (Invoke-AwsJson @('ec2', 'describe-volumes', '--volume-ids', $volume.id)).Volumes[0]
         if (-not $actual -or $actual.AvailabilityZone -ne $volume.zone) { throw 'Retained monitoring volume missing or wrong zone.' }
         $existingPv = Read-JsonCommand 'kubectl' @('get', 'pv', $volume.pv.metadata.name, '--ignore-not-found', '-o', 'json')
         if ($existingPv) {

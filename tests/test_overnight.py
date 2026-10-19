@@ -11,6 +11,26 @@ PWSH = shutil.which("pwsh") or shutil.which("powershell")
 
 @unittest.skipUnless(PWSH, "PowerShell is required")
 class OvernightTests(unittest.TestCase):
+    def test_aws_wrapper_dispatches_to_cli_without_shadowing_it(self):
+        command = r"""
+$ErrorActionPreference = 'Stop'
+$ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path (Get-Location) 'scripts/ops/Manage-Overnight.ps1'), [ref]$null, [ref]$null)
+$functions = $ast.FindAll({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst]}, $true)
+if ($functions.Name -contains 'aws') { throw 'Function shadows the native AWS CLI' }
+$function = $functions | Where-Object Name -eq 'Invoke-AwsJson'
+Invoke-Expression $function.Extent.Text
+function Read-JsonCommand([string]$Program, [string[]]$Arguments) {
+    [PSCustomObject]@{program=$Program; arguments=$Arguments}
+}
+$region = 'ap-northeast-2'
+$result = Invoke-AwsJson @('sts', 'get-caller-identity')
+if ($result.program -ne 'aws' -or $result.arguments[0] -ne 'sts' -or $result.arguments[1] -ne 'get-caller-identity') { throw 'Invalid CLI dispatch' }
+'PASS'
+"""
+        result = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-Command", command],
+                                cwd=ROOT, capture_output=True, text=True, timeout=30, check=True)
+        self.assertEqual(result.stdout.strip(), "PASS")
+
     def run_guard(self, resource_type, actions):
         fixture = json.dumps({"resource_changes": [{
             "address": "test.resource", "type": resource_type, "change": {"actions": actions}
