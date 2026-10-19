@@ -80,10 +80,10 @@ grafana:
     requests:
       cpu: 100m
       # 관측 사용량 약 377Mi에 여유를 두어 다른 파드의 과밀 배치 방지
-      memory: 512Mi
+      memory: 1Gi
     limits:
       cpu: 500m
-      memory: 512Mi
+      memory: 1Gi
   sidecar:
     # 기본 대시보드와 데이터 소스를 가져오는 보조 컨테이너
     resources:
@@ -94,6 +94,8 @@ grafana:
       limits:
         cpu: 100m
         memory: 128Mi
+  readinessProbe:
+    timeoutSeconds: 5
 
 alertmanager:
   ingress:
