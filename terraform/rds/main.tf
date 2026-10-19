@@ -45,7 +45,8 @@ resource "aws_vpc_security_group_ingress_rule" "mysql_from_eks" {
 
 # 서비스에서 사용할 RDS MySQL
 resource "aws_db_instance" "main" {
-  identifier = "${lower(var.project_name)}-ordermsa-db"
+  identifier          = "${lower(var.project_name)}-ordermsa-db"
+  snapshot_identifier = var.snapshot_identifier
 
   engine         = "mysql"
   engine_version = var.db_engine_version
@@ -83,6 +84,10 @@ resource "aws_db_instance" "main" {
   deletion_protection      = false
   skip_final_snapshot      = true
   delete_automated_backups = true
+
+  lifecycle {
+    ignore_changes = [snapshot_identifier]
+  }
 
   tags = {
     Name = "${var.project_name}-ordermsa-db"

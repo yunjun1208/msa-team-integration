@@ -26,3 +26,6 @@ work-gradle/
 
 # Local Terraform plan logs
 /*-plan.txt
+
+# Local overnight recovery bundle, encrypted for this Windows user.
+/.overnight/

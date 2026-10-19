@@ -9,6 +9,8 @@ resource "helm_release" "external_secrets" {
   create_namespace = true
   wait             = true
   timeout          = 600
+  atomic           = true
+  depends_on       = [helm_release.load_balancer_controller]
   values = [yamlencode({
     installCRDs    = true
     resources      = { requests = { cpu = "20m", memory = "64Mi" }, limits = { cpu = "200m", memory = "256Mi" } }
