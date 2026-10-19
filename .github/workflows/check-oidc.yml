@@ -1,0 +1,19 @@
+name: Check AWS OIDC subject
+on: workflow_dispatch
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  subject:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print only subject and audience
+        shell: python
+        run: |
+          import os,json,urllib.request,base64
+          req=urllib.request.Request(os.environ['ACTIONS_ID_TOKEN_REQUEST_URL']+'&audience=sts.amazonaws.com',headers={'Authorization':'Bearer '+os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']})
+          token=json.load(urllib.request.urlopen(req))['value']
+          payload=token.split('.')[1]
+          claims=json.loads(base64.urlsafe_b64decode(payload+'='*(-len(payload)%4)))
+          print('subject:',claims['sub'])
+          print('audience:',claims['aud'])

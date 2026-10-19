@@ -1,0 +1,9 @@
+**/build
+**/.gradle
+work-gradle
+.git
+.env*
+**/*.tfstate*
+**/*.tfvars
+**/.terraform
+**/__pycache__

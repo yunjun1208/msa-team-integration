@@ -1,0 +1,161 @@
+name: Test and publish changed services
+on:
+  workflow_dispatch:
+    inputs:
+      full_build:
+        description: '최초 재구축/게시 실패 복구용 전체 빌드 (AWS 게시는 main만)'
+        type: boolean
+        default: true
+  push:
+    branches: [main, test, test2]
+  pull_request:
+    branches: [main, test2]
+permissions:
+  contents: read
+concurrency:
+  group: app-images-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.select.outputs.services }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: CI, consumer and recovery regression tests
+        run: python3 -m unittest discover -s tests -v
+      - id: select
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          FULL: ${{ github.event_name == 'workflow_dispatch' && inputs.full_build }}
+        run: |
+          if [ "$FULL" = true ]; then
+            python3 scripts/ci/changed_services.py --all
+          else
+            python3 scripts/ci/changed_services.py --base "$BASE" --head HEAD
+          fi
+      - name: Validate release declaration
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python3 scripts/ci/release_manifest.py validate --base "$BASE"
+  config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.16.2'
+      - run: python3 -m pip install 'PyYAML==6.0.3'
+      - name: Terraform validate (no backend and no AWS authentication)
+        run: |
+          terraform fmt -check -recursive terraform terraform-k8s terraform-state-bootstrap
+          for root in terraform-state-bootstrap terraform terraform-k8s; do
+            terraform -chdir="$root" init -backend=false -input=false
+            terraform -chdir="$root" validate
+          done
+          terraform -chdir=terraform-k8s test -no-color
+      - name: Render GitOps manifests
+        run: kubectl kustomize app/msa > /tmp/apps.yaml
+      - uses: azure/setup-helm@v4
+        with:
+          version: 'v3.19.0'
+      - name: Validate database Secret chart
+        run: >-
+          helm lint terraform-k8s/charts/database-secret
+          --set region=ap-northeast-2
+          --set secretArn=arn:aws:secretsmanager:ap-northeast-2:256187519952:secret:mock
+          --set roleArn=arn:aws:iam::256187519952:role/mock
+  test:
+    needs: changes
+    if: needs.changes.outputs.services != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.changes.outputs.services) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test and package
+        run: bash scripts/ci/test-service.sh '${{ matrix.service }}'
+      - name: Build tested image
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: docker build --platform linux/amd64 -t local-check:$SERVICE app/msa/$SERVICE
+      - name: Check frontend NGINX configuration
+        if: matrix.service == 'frontend'
+        run: docker run --rm --add-host apigateway-service:127.0.0.1 local-check:frontend nginx -t
+      - name: Save exact image for publishing (main only)
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: docker save local-check:$SERVICE | gzip > image.tar.gz
+      - uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        with:
+          name: image-${{ matrix.service }}
+          path: image.tar.gz
+          retention-days: 2
+  gate:
+    name: required-ci
+    if: always()
+    needs: [changes, config, test]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          CHANGES: ${{ needs.changes.result }}
+          CONFIG: ${{ needs.config.result }}
+          TEST: ${{ needs.test.result }}
+          SERVICES: ${{ needs.changes.outputs.services }}
+        run: |
+          test "$CHANGES" = success
+          test "$CONFIG" = success
+          if [ "$SERVICES" != '[]' ]; then test "$TEST" = success; fi
+  publish:
+    needs: [changes, test, gate]
+    if: vars.ENABLE_AWS_PUBLISH == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.test.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Refuse stale source
+        run: test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: ap-northeast-2
+          allowed-account-ids: '256187519952'
+      - uses: aws-actions/amazon-ecr-login@v2
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: image-*
+          path: images
+      - name: Publish tested artifacts and create release proposal
+        env:
+          SERVICES_JSON: ${{ needs.changes.outputs.services }}
+        run: python3 scripts/ci/release_manifest.py publish
+      - name: Optional GitHub App token for normal PR check triggering
+        if: vars.RELEASE_APP_ID != ''
+        uses: actions/create-github-app-token@v2
+        id: app
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+      - name: Push a release branch and open PR (never main)
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
+          SERVICES_JSON: ${{ needs.changes.outputs.services }}
+        run: python3 scripts/ci/release_manifest.py propose
