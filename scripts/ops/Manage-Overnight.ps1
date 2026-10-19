@@ -5,6 +5,8 @@ param(
     [string]$Action = 'Prepare'
 )
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell 5.1 does not load the DPAPI assembly automatically.
+Add-Type -AssemblyName System.Security
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $store = Join-Path $root '.overnight'
 $bundlePath = Join-Path $store 'recovery.dpapi'
