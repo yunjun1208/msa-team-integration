@@ -34,6 +34,10 @@ class CiTests(unittest.TestCase):
 
     def test_update_only_selected_images(self):
         original = Path("app/msa/kustomization.yaml").read_text(encoding="utf-8")
+        original = "\n".join(
+            line for line in original.split("\n")
+            if not line.strip().startswith("digest:")
+        )
         updated = tags.update(original, ["member", "frontend"], "test-123")
         self.assertEqual(updated.count("newTag: test-123"), 2)
         self.assertEqual(sum(a != b for a, b in zip(original.splitlines(), updated.splitlines())), 2)
