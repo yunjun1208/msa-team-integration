@@ -107,7 +107,11 @@ function Get-ShutdownTargets([string[]]$Addresses) {
         $_ -notmatch '^aws_s3_bucket' -and $_ -notmatch '^aws_acm_certificate' -and
         $_ -notmatch '^aws_route53_record\.(website_certificate|management_certificate)' -and
         $_ -notmatch '^aws_dynamodb_table\.'
-    } | ForEach-Object { "-target=$_" })
+    } | ForEach-Object {
+        # Target every instance of the selected resource. Avoid passing quoted
+        # for_each indexes through Windows PowerShell 5.1 native arguments.
+        '-target=' + ($_ -replace '\[[^\]]*\]$', '')
+    } | Select-Object -Unique)
 }
 function New-ShutdownPlan([string]$Name) {
     $addresses = & terraform -chdir=terraform state list
@@ -125,7 +129,15 @@ function New-ShutdownPlan([string]$Name) {
 
 Assert-Account
 if ($Action -eq 'Prepare') {
-    if (Test-Path $bundlePath) { throw 'Recovery bundle already exists. Keep it; do not overwrite an earlier recovery.' }
+    if (Test-Path $bundlePath) {
+        if (Test-Path $statusPath) { throw 'Recovery already prepared. Keep the existing recovery; do not overwrite it.' }
+        # A previous Prepare stopped after encryption but before planning.
+        $previous = Read-Bundle
+        if ($previous.account -ne $account) { throw 'Existing backup account mismatch.' }
+        $archivePath = Join-Path $store "recovery-before-retry-$((Get-Date).ToString('yyyyMMdd-HHmmss-fff')).dpapi"
+        Copy-Item -LiteralPath $bundlePath -Destination $archivePath
+        Write-Host 'Previous encrypted backup retained. Retrying preparation.'
+    }
     Connect-Cluster
     $dirty = & git status --porcelain
     if ($LASTEXITCODE -ne 0 -or $dirty) { throw 'Commit/push the overnight scripts before preparing the backup.' }

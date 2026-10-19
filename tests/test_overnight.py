@@ -11,6 +11,23 @@ PWSH = shutil.which("pwsh") or shutil.which("powershell")
 
 @unittest.skipUnless(PWSH, "PowerShell is required")
 class OvernightTests(unittest.TestCase):
+    def test_targets_do_not_require_native_quoted_indexes(self):
+        command = r"""
+$ErrorActionPreference = 'Stop'
+$ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path (Get-Location) 'scripts/ops/Manage-Overnight.ps1'), [ref]$null, [ref]$null)
+$function = $ast.Find({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Get-ShutdownTargets'}, $true)
+Invoke-Expression $function.Extent.Text
+$targets = @(Get-ShutdownTargets @('module.eks.aws_eks_node_group.zonal["az-a"]', 'module.eks.aws_eks_node_group.zonal["az-c"]', 'aws_route53_record.management["argocd"]', 'module.ecr.aws_ecr_repository.main["member"]', 'aws_s3_bucket.deploy_verify'))
+if ($targets.Count -ne 2 -or $targets -notcontains '-target=module.eks.aws_eks_node_group.zonal' -or $targets -notcontains '-target=aws_route53_record.management') { throw 'Invalid resource grouping or retention filter' }
+if (($targets -join '') -match '[\[\]"]') { throw 'Native quoting still required' }
+'PASS'
+"""
+        # Use Windows PowerShell 5.1 explicitly when available.
+        shell = shutil.which("powershell") or PWSH
+        result = subprocess.run([shell, "-NoProfile", "-NonInteractive", "-Command", command],
+                                cwd=ROOT, capture_output=True, text=True, timeout=30, check=True)
+        self.assertEqual(result.stdout.strip(), "PASS")
+
     def test_aws_wrapper_dispatches_to_cli_without_shadowing_it(self):
         command = r"""
 $ErrorActionPreference = 'Stop'
