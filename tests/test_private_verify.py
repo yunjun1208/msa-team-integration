@@ -52,6 +52,17 @@ class PrivateVerifyTests(unittest.TestCase):
                 verify.main()
             self.assertEqual(aws.call_args.args, ("codebuild", "stop-build", "--id", "test-project:123"))
 
+    def test_cleanup_failure_preserves_original_error(self):
+        environment = {
+            "GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "1",
+            "VERIFY_SOURCE_BUCKET": "test-bucket", "VERIFY_CODEBUILD_PROJECT": "test-project",
+        }
+        with patch.dict(os.environ, environment), patch.object(verify.signal, "signal"), \
+             patch.object(verify.subprocess, "run"), patch.object(verify, "aws") as aws:
+            aws.side_effect = [{"build": {"id": "test-project:123"}}, RuntimeError("original query failed"), ValueError("cleanup failed")]
+            with self.assertRaisesRegex(RuntimeError, "original query failed"):
+                verify.main()
+
 
 if __name__ == "__main__":
     unittest.main()

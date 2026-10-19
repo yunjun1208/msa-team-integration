@@ -72,7 +72,10 @@ def main():
         raise TimeoutError("Private verifier exceeded 20 minutes")
     finally:
         if not finished:
-            aws("codebuild", "stop-build", "--id", build_id)
+            try:
+                aws("codebuild", "stop-build", "--id", build_id)
+            except Exception as error:
+                print(f"Cleanup failed ({type(error).__name__}); check CodeBuild job {build_id}", flush=True)
 
 
 if __name__ == "__main__":

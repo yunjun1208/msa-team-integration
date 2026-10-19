@@ -158,7 +158,7 @@ resource "aws_iam_role_policy" "deploy_check_codebuild" {
   policy = jsonencode({ Version = "2012-10-17", Statement = [
     { Effect = "Allow", Action = "s3:PutObject", Resource = "${aws_s3_bucket.deploy_verify.arn}/sources/*" },
     { Effect = "Allow", Action = "codebuild:StartBuild", Resource = aws_codebuild_project.deploy_verify.arn },
-    { Effect = "Allow", Action = ["codebuild:BatchGetBuilds", "codebuild:StopBuild"], Resource = "arn:aws:codebuild:ap-northeast-2:${data.aws_caller_identity.current.account_id}:build/${local.deploy_verify_name}:*" },
+    { Effect = "Allow", Action = ["codebuild:BatchGetBuilds", "codebuild:StopBuild"], Resource = aws_codebuild_project.deploy_verify.arn },
     { Effect = "Allow", Action = "logs:GetLogEvents", Resource = "${aws_cloudwatch_log_group.deploy_verify.arn}:*" }
   ] })
 }
