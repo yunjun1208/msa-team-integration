@@ -39,7 +39,7 @@ if ($Push) {
     if ($LASTEXITCODE -ne 0 -or $account.Trim() -ne '256187519952') { throw 'AWS 계정이 프로젝트와 다릅니다.' }
     $token = & aws ecr get-login-password --region ap-northeast-2
     if ($LASTEXITCODE -ne 0) { throw 'ECR 로그인 토큰을 가져오지 못했습니다.' }
-    $token | & docker login --username AWS --password-stdin $registry
+    & cmd /d /c "aws ecr get-login-password --region ap-northeast-2 --profile default | docker login --username AWS --password-stdin 256187519952.dkr.ecr.ap-northeast-2.amazonaws.com"
     $token = $null
     if ($LASTEXITCODE -ne 0) { throw 'Docker ECR 로그인 실패' }
 }

@@ -15,7 +15,7 @@ if ($identity.Arn -notmatch '^arn:aws:iam::256187519952:(user|role)/') { throw '
 if ($AdminCidr -notmatch '^([0-9]{1,3}\.){3}[0-9]{1,3}/32$') { throw '현재 PC 공인 IPv4/32를 입력하세요.' }
 if ($AlertEmail -notmatch '^[^@\s]+@[^@\s]+\.[^@\s]+$') { throw '알림 이메일을 확인하세요.' }
 if ($SesSenderEmail -and $SesSenderEmail -notmatch '^[^@\s]+@[^@\s]+\.[^@\s]+$') { throw 'SES 이메일을 확인하세요.' }
-if ($GithubOidcSubject -notmatch '^repo:yunjun1208(?:@[0-9]+)?/msa-team-integration(?:@[0-9]+)?:ref:refs/heads/main$') { throw '새 저장소 main의 Check AWS OIDC subject 결과를 입력하세요.' }
+if ($GithubOidcSubject -notmatch '^repo:yunjun1208@336436724/msa-team-integration@1425166962:ref:refs/heads/main$') { throw '새 저장소 main의 Check AWS OIDC subject 결과를 입력하세요.' }
 foreach ($file in @('terraform/terraform.tfvars','terraform-k8s/terraform.tfvars')) {
     if (Test-Path -LiteralPath $file) { throw "$file 파일이 이미 있습니다. 기존 설정을 보존하기 위해 중단합니다." }
 }
