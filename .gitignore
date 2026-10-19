@@ -23,3 +23,6 @@ __pycache__/
 work-gradle/
 **/build/
 **/.gradle/
+
+# Local Terraform plan logs
+/*-plan.txt

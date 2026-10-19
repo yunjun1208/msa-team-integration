@@ -29,7 +29,7 @@ module "eks" {
       subnet_id         = module.network.private_subnet_ids[index(var.availability_zones, "ap-northeast-2a")]
       desired_size      = 2
       min_size          = 2
-      max_size          = 2
+      max_size          = 3
     }
     az-c = {
       availability_zone = "ap-northeast-2c"
