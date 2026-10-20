@@ -1,0 +1,48 @@
+{
+  "product_id": 3,
+  "before_stock": {
+    "3": 1,
+    "2": 0,
+    "1": 7
+  },
+  "phase": "passed",
+  "before_order_ids": [
+    10,
+    9,
+    8,
+    7,
+    6,
+    5,
+    4,
+    3
+  ],
+  "requests": [
+    {
+      "started_ns": 1806920514636800,
+      "http": 201,
+      "id": 12,
+      "status": "ORDERED"
+    },
+    {
+      "started_ns": 1806920514323200,
+      "http": 409,
+      "id": 11,
+      "status": "FAILED"
+    }
+  ],
+  "after_stock": {
+    "3": 0,
+    "2": 0,
+    "1": 7
+  },
+  "replay": {
+    "http": 201,
+    "id": 12,
+    "status": "ORDERED"
+  },
+  "new_order_ids": [
+    11,
+    12
+  ],
+  "client_start_skew_ms": 0.3136
+}
