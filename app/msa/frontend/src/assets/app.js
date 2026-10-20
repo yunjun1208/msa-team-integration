@@ -331,6 +331,7 @@ async function checkoutCart() {
 
       if (error.data?.status === 'FAILED') {
         saveCart(readCart().map(row => row.id === item.id ? { ...row, requestKey: undefined } : row));
+        error.message = '주문 실패: 재고 해제 완료. 수량과 재고를 확인한 뒤 다시 시도해주세요.';
       }
       failures.push(String(item.name) + ': ' + error.message);
     }
