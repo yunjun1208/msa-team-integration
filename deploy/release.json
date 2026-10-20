@@ -21,9 +21,10 @@
       "digest": "sha256:1c13522656007ca4b8f5bdb91b6e24e43ef455b630df5888c39f1774ab29e0f7"
     }
   },
-  "intent": "release",
+  "intent": "rollback",
   "updatedServices": [
     "frontend"
   ],
-  "runId": "39358219052"
+  "runId": "39358219052",
+  "rollbackFrom": "6bf23b44097f0154986da682d441ed24f5450571"
 }
