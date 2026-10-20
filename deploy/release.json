@@ -17,14 +17,13 @@
       "digest": "sha256:fa04427fe8912c43af51b5f59ead9e2944a6a6a9f702420dd29e613fd8e60355"
     },
     "frontend": {
-      "source": "15d8e8c9ea325943c0676f8693616c0817ba7749",
-      "digest": "sha256:1c13522656007ca4b8f5bdb91b6e24e43ef455b630df5888c39f1774ab29e0f7"
+      "source": "c82014756050a1d1572fcd1beb5e70ed72202287",
+      "digest": "sha256:36e9e0859afb7ce2d21b02836ade17ce5ded21242b4a2a8393c6a8726ed9d58d"
     }
   },
-  "intent": "rollback",
+  "intent": "release",
   "updatedServices": [
     "frontend"
   ],
-  "runId": "39358219052",
-  "rollbackFrom": "6bf23b44097f0154986da682d441ed24f5450571"
+  "runId": "39360176775"
 }
