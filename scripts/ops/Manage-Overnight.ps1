@@ -76,6 +76,20 @@ function Apply-Json($Value) {
     $Value | ConvertTo-Json -Depth 100 | & kubectl apply -f -
     if ($LASTEXITCODE -ne 0) { throw 'Kubernetes restore failed.' }
 }
+function Get-RestoredPvcOwnership([string]$Name) {
+    # Grafana's claim is owned directly by the monitoring Helm release.
+    # Prometheus/Alertmanager claims are created by StatefulSets, not Helm.
+    if ($Name -ne 'monitoring-grafana') { return $null }
+    return @{
+        metadata = @{
+            labels = @{ 'app.kubernetes.io/managed-by' = 'Helm' }
+            annotations = @{
+                'meta.helm.sh/release-name' = 'monitoring'
+                'meta.helm.sh/release-namespace' = 'monitoring'
+            }
+        }
+    }
+}
 function Terraform-Apply([string]$Directory, [string[]]$Extra = @()) {
     Invoke-Checked 'terraform' (@("-chdir=$Directory", 'apply', '-input=false', '-auto-approve') + $Extra)
 }
@@ -277,6 +291,12 @@ if ($Action -eq 'Resume') {
         if ($existingPvc) {
             if ($existingPvc.spec.volumeName -ne $volume.pv.metadata.name) { throw 'Existing claim refers to a different volume.' }
         } else { Apply-Json $volume.pvc }
+        $ownership = Get-RestoredPvcOwnership $volume.pvc.metadata.name
+        if ($ownership) {
+            $ownershipPath = Join-Path $store 'pvc-ownership.json'
+            Write-Json $ownershipPath $ownership
+            Invoke-Checked 'kubectl' @('patch', 'pvc', $volume.pvc.metadata.name, '-n', 'monitoring', '--type=merge', '--patch-file', $ownershipPath)
+        }
     }
     if ($backup.admin) {
         Apply-Json @{ apiVersion = 'v1'; kind = 'Secret'; metadata = @{ name = 'final-admin-config'; namespace = 'soldesk' }; type = 'Opaque'; data = $backup.admin }

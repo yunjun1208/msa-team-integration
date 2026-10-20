@@ -11,6 +11,22 @@ PWSH = shutil.which("pwsh") or shutil.which("powershell")
 
 @unittest.skipUnless(PWSH, "PowerShell is required")
 class OvernightTests(unittest.TestCase):
+    def test_only_grafana_claim_receives_helm_ownership(self):
+        command = r"""
+$ErrorActionPreference = 'Stop'
+$ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path (Get-Location) 'scripts/ops/Manage-Overnight.ps1'), [ref]$null, [ref]$null)
+$function = $ast.Find({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Get-RestoredPvcOwnership'}, $true)
+Invoke-Expression $function.Extent.Text
+$patch = Get-RestoredPvcOwnership 'monitoring-grafana'
+if ($patch.metadata.labels['app.kubernetes.io/managed-by'] -ne 'Helm' -or $patch.metadata.annotations['meta.helm.sh/release-name'] -ne 'monitoring' -or $patch.metadata.annotations['meta.helm.sh/release-namespace'] -ne 'monitoring') { throw 'Missing Helm ownership' }
+if ($patch.ContainsKey('spec')) { throw 'Ownership patch must not change storage' }
+if ($null -ne (Get-RestoredPvcOwnership 'prometheus-data')) { throw 'StatefulSet storage must not be adopted by Helm' }
+'PASS'
+"""
+        result = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-Command", command],
+                                cwd=ROOT, capture_output=True, text=True, timeout=30, check=True)
+        self.assertEqual(result.stdout.strip(), "PASS")
+
     def test_targets_do_not_require_native_quoted_indexes(self):
         command = r"""
 $ErrorActionPreference = 'Stop'
