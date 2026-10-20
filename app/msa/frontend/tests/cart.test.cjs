@@ -72,3 +72,25 @@ test('202 processing is not displayed as an order success', async () => {
   assert.equal(result.failures.length, 1);
   assert.ok(c.readCart()[0].requestKey);
 });
+
+test('409 failed order explains released stock and allows a new request after quantity correction', async () => {
+  const requests = [];
+  const c = app(async (url, options) => {
+    requests.push({ key: options.headers['Idempotency-Key'], body: JSON.parse(options.body) });
+    if (requests.length === 1) return { ok:false, status:409,
+      text:async()=>JSON.stringify({id:3,status:'FAILED'}) };
+    return { ok:true, status:201, headers:{get:()=> 'application/json'},
+      json:async()=>({id:4,status:'ORDERED'}) };
+  });
+  c.saveCart([{id:2,name:'QA',quantity:2,price:1000}]);
+  const failed = await c.checkoutCart();
+  assert.equal(failed.succeeded, 0);
+  assert.match(failed.failures[0], /재고 해제 완료/);
+  assert.equal(c.readCart()[0].requestKey, undefined);
+  assert.equal(c.readCart()[0].quantity, 2);
+  c.saveCart(c.readCart().map(row => ({...row, quantity:1})));
+  assert.equal((await c.checkoutCart()).succeeded, 1);
+  assert.notEqual(requests[0].key, requests[1].key);
+  assert.equal(requests[1].body.productCount, 1);
+  assert.equal(c.readCart().length, 0);
+});
