@@ -1,8 +1,10 @@
-> **이번 AWS 실행 안내:** [AWS-FIRST-RUN.md](AWS-FIRST-RUN.md)를 먼저 읽으세요. 계정 256187519952 / aws-cisco.com / yunjun1208/msa-team-integration 기준 수정본이며 아직 AWS 배포 검증 전입니다.
+> **2026-10-20 최종 검증:** 기존 데이터 복원, 이미지 롤백 왕복, 상품 API 장애 보상, 별개 주문 2건 경쟁 및 동일 키 재사용 검증을 통과했습니다. 검증한 앱 배포 기준은 48ff1ed입니다. SES는 샌드박스이며 상용 발송 전환은 별도입니다.
 
-> **로컬 실행:** [LOCAL-RUN.md](LOCAL-RUN.md)를 따라 `Start-Local.ps1`을 실행하세요. 이번 수정과 검증 한계는 [FIX-REPORT.md](FIX-REPORT.md)에 정리했습니다.
+> **팀 공유 자료:** [전체 변경 기록](docs/team-handoff/팀공유-통합부터-복원과-검증까지.md) · [HTML 다운로드 후 열기](docs/team-handoff/MSA-최종프로젝트-팀공유.html) · [문서·증거·검증 도구 ZIP](docs/team-handoff/MSA-문서-증거-검증도구.zip) · [자료 안내](docs/team-handoff/README.md). HTML은 화면 증거와 다운로드 자료를 내장합니다.
 
-> **test2 개선 코드:** 주문 복구·Outbox·고객 이메일·Secrets Manager·승인 배포를 추가했습니다. 아직 AWS에 적용한 결과는 아닙니다. [변경·적용·검증 안내](docs/11-test2-delivery.md)를 먼저 읽어주세요.
+> **실행 안내:** 최초 준비는 [AWS-FIRST-RUN.md](AWS-FIRST-RUN.md), 데이터 보존 종료·복원은 [OVERNIGHT-RECOVERY.md](OVERNIGHT-RECOVERY.md), 로컬 실행은 [LOCAL-RUN.md](LOCAL-RUN.md)를 참고하세요. 새 PC에서 인증 없이 명령 하나로 최초 구축되는 구성은 아닙니다.
+
+> **기록 범위:** 기존 [FIX-REPORT.md](FIX-REPORT.md), [AWS-PREP-REPORT.md](AWS-PREP-REPORT.md), [test2 안내](docs/11-test2-delivery.md)의 미검증 문구는 작성 당시 상태입니다. 최신 결과와 한계는 팀 공유 자료를 따릅니다.
 
 # AWS · EKS 서비스 운영 프로젝트
 
